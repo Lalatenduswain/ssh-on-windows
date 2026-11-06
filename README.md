@@ -56,12 +56,18 @@ The script is safe to re-run.
 | 6 | Step 3: `Cannot start service sshd on computer '.'` (OpenSSH Server had installed fine in Step 2) | Generic Windows error. Usual causes: missing `C:\ProgramData\ssh` folder, `sshd_config` or host keys, wrong permissions on them, or port 22 already in use | Fixed in commit `ad61fbc`: the script now creates the folder and config, runs `ssh-keygen -A` and `FixHostFilePermissions.ps1`, and if sshd still cannot start it prints `sshd -t`, port 22 listeners and the OpenSSH event log. Manual repair is below |
 | 7 | AnyDesk banner: "Free license (non-professional use). Session will be closed in 2 min" while the script was running | Free AnyDesk sessions are time limited | The script keeps running on the PC if AnyDesk drops. Reconnect and check the window; re-run the script if unsure, it is idempotent |
 
+| 8 | Same Step 3 error again (`Enable-SSHServer.ps1:140 char:48`, plain `Start-Service sshd`) after the fix was pushed | The old copy of the script was still in the folder; the fixed file was never downloaded | Re-download and check the size (about 16.6 KB; the old copy is 14,822 bytes) before running. If the error does not mention `FixHostFilePermissions` or print diagnostics, it is the old file |
+| 9 | Key was generated with `ssh-keygen` on the Windows PC and that public key was passed to `-PublicKey` | The key must come from the machine you connect **from**. A key pair created on the target only lets the PC log in to itself | On the client machine run `cat ~/.ssh/id_ed25519.pub` (Linux/macOS) or `type $env:USERPROFILE\.ssh\id_ed25519.pub` (Windows) and pass that line. Keep the private key on the client only |
+| 10 | `whoami` showed `citpl-arsalan\administrator` (the built-in Administrator) while earlier runs were as `Arsalan` | Different elevated sessions use different accounts, and the script installs the key for the account running it unless `-UserName` is given | Pass `-UserName <account you will log in as>`. Both are admins and share `administrators_authorized_keys`, so the key works for either; prefer a named account over the built-in `Administrator` |
+
 Re-download the latest script on the Windows PC (elevated PowerShell):
 
 ```powershell
 cd D:\0Lala
 Invoke-WebRequest https://raw.githubusercontent.com/Lalatenduswain/ssh-on-windows/main/Enable-SSHServer.ps1 -OutFile .\Enable-SSHServer.ps1
+(Get-Item .\Enable-SSHServer.ps1).Length    # about 16.6 KB means the new version
 Unblock-File .\Enable-SSHServer.ps1
+.\Enable-SSHServer.ps1 -UserName <login account> -InstallTailscale -PublicKey "<public key from the machine you connect FROM>"
 ```
 
 Manual repair if `sshd` will not start:
