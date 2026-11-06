@@ -137,7 +137,37 @@ if (-not (Test-Path $sshdExe)) { Fail "sshd.exe not found at $sshdExe after inst
 # ---------------------------------------------------------------- 3. Service
 Step 'Step 3: Start sshd and enable auto-start'
 Set-Service -Name sshd -StartupType Automatic
-if ((Get-Service sshd).Status -ne 'Running') { Start-Service sshd }
+
+# Repair the usual reasons sshd refuses to start: missing folder/config/host keys, bad permissions.
+$sshDir = Join-Path $env:ProgramData 'ssh'
+if (-not (Test-Path $sshDir)) { New-Item -ItemType Directory -Path $sshDir -Force | Out-Null }
+if (-not (Test-Path $sshdConfig)) {
+    $default = Join-Path $env:SystemRoot 'System32\OpenSSH\sshd_config_default'
+    if (Test-Path $default) { Copy-Item $default $sshdConfig; Write-Host 'Created sshd_config from the default template.' }
+}
+if (-not (Get-ChildItem $sshDir -Filter 'ssh_host_*_key' -ErrorAction SilentlyContinue)) {
+    $keygen = Join-Path $env:SystemRoot 'System32\OpenSSH\ssh-keygen.exe'
+    if (Test-Path $keygen) { & $keygen -A | Out-Null; Write-Host 'Generated SSH host keys.' }
+}
+$fixPerm = Join-Path $env:SystemRoot 'System32\OpenSSH\FixHostFilePermissions.ps1'
+if (Test-Path $fixPerm) {
+    try { & $fixPerm -Confirm:$false | Out-Null; Write-Host 'Host key/config permissions repaired.' }
+    catch { Warn "FixHostFilePermissions.ps1 failed: $($_.Exception.Message)" }
+}
+
+if ((Get-Service sshd).Status -ne 'Running') {
+    try { Start-Service sshd -ErrorAction Stop }
+    catch {
+        Write-Host "sshd failed to start: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host '--- sshd -t (config check) ---' -ForegroundColor Yellow
+        & $sshdExe -t 2>&1 | ForEach-Object { Write-Host $_ }
+        Write-Host '--- Anything already listening on port 22 ---' -ForegroundColor Yellow
+        Get-NetTCPConnection -LocalPort 22 -State Listen -ErrorAction SilentlyContinue | Format-Table LocalAddress, OwningProcess -AutoSize
+        Write-Host '--- Last OpenSSH log entries ---' -ForegroundColor Yellow
+        Get-WinEvent -LogName 'OpenSSH/Operational' -MaxEvents 10 -ErrorAction SilentlyContinue | Format-List TimeCreated, Message
+        Fail 'sshd could not start. Send the output above (it shows the real reason).'
+    }
+}
 Set-Service -Name ssh-agent -StartupType Automatic -ErrorAction SilentlyContinue
 Ok 'sshd is running and set to Automatic (first start also generates host keys and sshd_config).'
 if (-not (Test-Path $sshdConfig)) { Fail "$sshdConfig was not created. Check the sshd service." }
