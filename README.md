@@ -7,6 +7,7 @@ Enable and configure OpenSSH Server (sshd) on Windows 11 Pro using PowerShell.
 | File | Description |
 |------|-------------|
 | `Enable-SSHServer.ps1` | One script: install, harden and verify OpenSSH Server for remote access |
+| [`MANUAL-SETUP.md`](MANUAL-SETUP.md) | The same setup done by hand, one checked step at a time (use it when the script fails or to find which step breaks) |
 
 ## Quick Start
 
