@@ -52,6 +52,30 @@ The script is safe to re-run.
 | 2 | `cannot be run because it contains a "#requires" statement for running as Administrator` (`ScriptRequiresElevation`) | PowerShell was opened normally, not elevated. Nothing was changed on the PC | Start > type `PowerShell` > right-click > **Run as administrator**. The title bar must say "Administrator: Windows PowerShell" |
 | 3 | Example command pasted with the placeholder key `"ssh-ed25519 AAAA... me@laptop"` | The README example was copied without replacing the key | Use your real public key line (`cat ~/.ssh/id_ed25519.pub` or `type $env:USERPROFILE\.ssh\id_rsa.pub`). The script validates the key first and aborts before changing anything if it is invalid |
 | 4 | Script file path had a zero in the folder name (`D:\0Lala`) | Easy to mistype as the letter O | Use Tab completion for paths |
+| 5 | `Test-Path : Illegal characters in path` right after Step 1 | Script bug: `-PublicKey` text was first tested as a file path, and Windows PowerShell 5.1 throws on characters such as `>` in the key comment | Fixed in commit `fba0b33`. The script now recognises key text before any path check. Re-download the script (see below) |
+| 6 | Step 3: `Cannot start service sshd on computer '.'` (OpenSSH Server had installed fine in Step 2) | Generic Windows error. Usual causes: missing `C:\ProgramData\ssh` folder, `sshd_config` or host keys, wrong permissions on them, or port 22 already in use | Fixed in commit `ad61fbc`: the script now creates the folder and config, runs `ssh-keygen -A` and `FixHostFilePermissions.ps1`, and if sshd still cannot start it prints `sshd -t`, port 22 listeners and the OpenSSH event log. Manual repair is below |
+| 7 | AnyDesk banner: "Free license (non-professional use). Session will be closed in 2 min" while the script was running | Free AnyDesk sessions are time limited | The script keeps running on the PC if AnyDesk drops. Reconnect and check the window; re-run the script if unsure, it is idempotent |
+
+Re-download the latest script on the Windows PC (elevated PowerShell):
+
+```powershell
+cd D:\0Lala
+Invoke-WebRequest https://raw.githubusercontent.com/Lalatenduswain/ssh-on-windows/main/Enable-SSHServer.ps1 -OutFile .\Enable-SSHServer.ps1
+Unblock-File .\Enable-SSHServer.ps1
+```
+
+Manual repair if `sshd` will not start:
+
+```powershell
+$o = "$env:SystemRoot\System32\OpenSSH"
+& "$o\ssh-keygen.exe" -A
+& "$o\FixHostFilePermissions.ps1" -Confirm:$false
+Start-Service sshd; Get-Service sshd
+# still failing? show the real reason:
+& "$o\sshd.exe" -t
+Get-WinEvent -LogName 'OpenSSH/Operational' -MaxEvents 10 | Format-List TimeCreated, Message
+Get-NetTCPConnection -LocalPort 22 -ErrorAction SilentlyContinue
+```
 
 Working sequence (elevated PowerShell):
 
@@ -78,6 +102,8 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 | `sshd_config failed validation` | A manual edit conflicts with the managed block | The script restores the backup itself. Fix the line reported by `sshd -t -f C:\ProgramData\ssh\sshd_config` |
 | Windows account has no password | Passwordless accounts are unreliable over SSH | Set a password on the account first |
 | Antivirus or endpoint tools flag the script or block sshd | Security software policy | Allow `C:\Windows\System32\OpenSSH\sshd.exe` and the script path |
+| Target PC is Windows 10 22H2 (build 19045) | Windows 10 reached end of support in October 2025, so it only gets updates through the Extended Security Updates program | Keep SSH limited to Tailscale/LAN with password login off (the script's defaults), and plan an upgrade to Windows 11 |
+| `Add-WindowsCapability` or the install stalls on a low-disk PC | The OpenSSH Server feature needs a few hundred MB free on `C:` | Free space first (Settings > System > Storage), then re-run |
 | PC reachable only while plugged in | The sleep fix applies to AC power only | Set `powercfg /change standby-timeout-dc 0` if it must stay on battery, and check the lid-close action |
 
 Useful checks after a run:
