@@ -60,6 +60,11 @@ The script is safe to re-run.
 | 9 | Key was generated with `ssh-keygen` on the Windows PC and that public key was passed to `-PublicKey` | The key must come from the machine you connect **from**. A key pair created on the target only lets the PC log in to itself | On the client machine run `cat ~/.ssh/id_ed25519.pub` (Linux/macOS) or `type $env:USERPROFILE\.ssh\id_ed25519.pub` (Windows) and pass that line. Keep the private key on the client only |
 | 10 | `whoami` showed `citpl-arsalan\administrator` (the built-in Administrator) while earlier runs were as `Arsalan` | Different elevated sessions use different accounts, and the script installs the key for the account running it unless `-UserName` is given | Pass `-UserName <account you will log in as>`. Both are admins and share `administrators_authorized_keys`, so the key works for either; prefer a named account over the built-in `Administrator` |
 
+| 11 | Command run with the README placeholders left in: `-UserName <login account> ... -PublicKey` (no value) | Placeholders must be replaced. In PowerShell `<` is a redirection operator, so the line errors, and `-PublicKey` with no value runs without a key | Replace `<login account>` with the real account (e.g. `Arsalan`) and give `-PublicKey` the full one-line key in quotes. Several keys are allowed: `-PublicKey "ssh-ed25519 AAAA... a@x","ssh-rsa AAAA... b@y"` |
+| 12 | AnyDesk "Session Closed: closed due to license limitations" | Free AnyDesk sessions end after a short time | Click Retry and reconnect; paste the download + run commands as one block so a session is enough. Once sshd and Tailscale are up, connect with SSH instead |
+
+Which key to use: the public key (`.pub` file) of the machine you will connect **from**. On Linux/macOS print it with `cat ~/.ssh/id_ed25519.pub`; on Windows with `type $env:USERPROFILE\.ssh\id_ed25519.pub`. Never send the private key (the file without `.pub`).
+
 Re-download the latest script on the Windows PC (elevated PowerShell):
 
 ```powershell
