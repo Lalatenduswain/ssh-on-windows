@@ -94,7 +94,12 @@ if ($localUser -and -not $localUser.PasswordRequired) {
 $keyLines = @()
 foreach ($item in $PublicKey) {
     if ([string]::IsNullOrWhiteSpace($item)) { continue }
-    if (Test-Path -LiteralPath $item -PathType Leaf) { $raw = Get-Content -LiteralPath $item } else { $raw = @($item) }
+    # Key text is recognised first; the file-path check can throw on characters like '>' in key comments.
+    $isFile = $false
+    if ($item.Trim() -notmatch $keyRegex) {
+        try { $isFile = Test-Path -LiteralPath $item -PathType Leaf -ErrorAction Stop } catch { $isFile = $false }
+    }
+    if ($isFile) { $raw = Get-Content -LiteralPath $item } else { $raw = @($item) }
     foreach ($line in $raw) {
         $t = $line.Trim()
         if (-not $t) { continue }
